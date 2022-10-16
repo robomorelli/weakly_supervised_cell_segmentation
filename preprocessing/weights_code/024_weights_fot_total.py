@@ -33,9 +33,10 @@ from skimage.morphology import watershed, remove_small_holes, remove_small_objec
 label, erosion, dilation, local_maxima, skeletonize
 from scipy import ndimage
 from skimage.feature import peak_local_max
+import pickle
 
 reader = import_module('020_loader')
-from config_script import *    
+from config import*
 
 LoadImagesForWeight = ALL_IMAGES # Image without Test
 LoadMasksForWeight = ALL_MASKS #Need to rerun mask generator for create mask and relative path
@@ -55,9 +56,10 @@ image_ids = [str(x)+'.TIF' for x in ix]
 
 sigma = 4
 
-def make_weights(image_ids, SaveWeightsMasksRed = SaveWeightsMasksRed, maximum = 6.224407):
+def make_weights_tot(image_ids):
+    total = np.zeros((len(image_ids), 512,512), dtype=np.float32)
+    SaveWeightsMasksRed =  str(ALL_MASKS.parent)
 
-    maximum = maximum
     
     for ax_index, name in tqdm(enumerate(image_ids),total=len(image_ids)):
 
@@ -141,39 +143,26 @@ def make_weights(image_ids, SaveWeightsMasksRed = SaveWeightsMasksRed, maximum =
             weighted_maskkk = cv2.multiply(weighted_maskk, board)
             
             
-#             total[ax_index] = weighted_maskkk
+            total[ax_index] = weighted_maskkk
             
             
-        if (weighted_maskkk.max()/(maximum+0.0001))> 1:
+        # if (weighted_maskkk.max()/(maximum+0.0001))> 1:
 
-            break
+            # break
 
-        weighted_maskkk = weighted_maskkk*1/maximum
-        target = np.clip(target, 0 , 1)
-        final_target = np.dstack((target, weighted_maskkk, null))
+        # weighted_maskkk = weighted_maskkk*1/maximum
+        # target = np.clip(target, 0 , 1)
+        # final_target = np.dstack((target, weighted_maskkk, null))
 
 
-        aug_mask_dir =  SaveWeightsMasksRed + '/{}.TIF'.format(ax_index) 
+        # aug_mask_dir =  SaveWeightsMasksRed + '/{}.TIF'.format(ax_index) 
         
         # print('saving {}'.format(name))
-        plt.imsave(fname=aug_mask_dir,arr = final_target)
+        # plt.imsave(fname=aug_mask_dir,arr = final_target)
+    with open(SaveWeightsMasksRed+'/total.pkl', 'wb') as f:
+        pickle.dump(total, f)
             
-make_weights(image_ids, SaveWeightsMasksRed, maximum = 6.224407)
+if __name__ == "__main__":
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    make_weights_tot(image_ids)
 
