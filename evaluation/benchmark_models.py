@@ -37,6 +37,7 @@ from torchvision.transforms import transforms as T
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import matplotlib
+import argparse
 matplotlib.use('qt5Agg')
 
 from evaluation.evaluation_utils import post_processing, compute_metrics_global, model_inference, compute_metrics
@@ -44,14 +45,21 @@ from evaluation.evaluation_utils import post_processing, compute_metrics_global,
 cuda = torch.cuda.is_available()
 device = torch.device("cuda" if cuda else "cpu")
 
-def metric_reports_th_sweep(images_path, targets_path, model_path, save_metrics_path,
+def metric_reports_th_sweep(args, images_path, targets_path, model_path, save_metrics_path,
                             batch_size=4, c0=True, transform=None, th_min=0.3, th_max=1,
                             steps=5, min_obj_size=2, foot=4, area_threshold=6, max_dist=3):
     # load model
-    model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=1, c0=c0,
-            pretrained = False, progress= True)).to(device)
-    model.load_state_dict(torch.load(model_path))
-    model_name = model_path.split('/')[-1]
+    vae_flag = False
+    if args.architecture == 'vae':
+        model = nn.DataParallel(
+            c_resunetVAE(arch='c-ResUnetVAE', n_features_start=16, n_out=1, n_outRec=3, fully_conv=False,
+                         pretrained=False, progress=True)).to(device)
+        model.load_state_dict(torch.load(model_path))
+        vae_flag = True
+    else:
+        model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=1, c0=c0,
+                pretrained = False, progress= True)).to(device)
+        model.load_state_dict(torch.load(model_path))
 
     metrics_path = save_metrics_path + 'metrics/'
     summary_path = save_metrics_path + 'summary/'
@@ -75,7 +83,7 @@ def metric_reports_th_sweep(images_path, targets_path, model_path, save_metrics_
     filenames = cells_images.imgs_list
 
     # model inference
-    images, targets, preds = model_inference(data_loader, model)
+    images, targets, preds = model_inference(data_loader, model, vae_flag)
     ths = np.linspace(th_min, th_max, steps)
 
     for th in ths:
@@ -86,12 +94,20 @@ def metric_reports_th_sweep(images_path, targets_path, model_path, save_metrics_
         summary.to_csv(summary_path + 'threshold_{}.csv'.format(str(th)))
 
 if __name__ == "__main__":
-    model_name = "c-resunet_21.h5"
+    parser = argparse.ArgumentParser(description='Define parameters for test.')
+    #parser.add_argument('--save_model_path', nargs="?", default=model_results,
+    #                    help='the folder including the masks to crop')
+    #parser.add_argument('--model_name', nargs="?", default='c-resunet',
+
+    parser.add_argument('--architecture', default='vae', help='type of architecture')
+    args = parser.parse_args()
+
+    model_name = "2path_2head_2.h5" #c-resunet_21.h5
     test_images_path = str(test_images.as_posix().replace('/evaluation', ''))
     test_masks_path = str(test_masks.as_posix().replace('/evaluation', ''))
-    model_path = '../model_results/supervised/green/{}'.format(model_name)
+    model_path = '../model_results/supervised/green/{}/{}'.format(model_name.replace('.h5',''), model_name)
     save_metrics_path = '../model_results/supervised/green/{}/'.format(model_name.replace('.h5',''))
 
-    metric_reports_th_sweep(Path(test_images_path), Path(test_masks_path), model_path, save_metrics_path=save_metrics_path,
+    metric_reports_th_sweep(args, Path(test_images_path), Path(test_masks_path), model_path, save_metrics_path=save_metrics_path,
                             batch_size=4, c0=True, transform=None, th_min=0.3, th_max=1,
                             steps=10, min_obj_size=2, foot=4, area_threshold=6, max_dist=3)
