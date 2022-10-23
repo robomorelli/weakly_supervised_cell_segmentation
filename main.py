@@ -49,7 +49,6 @@ def train(args):
                                                            few_shot=args.few_shot)
     if args.resume or args.fine_tuning:
         resume_path = str(args.resume_path) + '/{}/{}'.format(args.model_name, args.model_name + '.h5')
-    if args.new_model_name:
         args.model_name = args.new_model_name
 
     if args.fine_tuning:
