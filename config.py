@@ -35,10 +35,16 @@ RADIUS_RT = 6
 SPLIT_NUM = 4
 
 home_path = os.getcwd()
+home_path  = Path(home_path).as_posix()
+
+if home_path .split('/')[-1] != "weakly_supervised_cell_segmentation":
+    home_path = Path(home_path ).parent.as_posix()
+
 PROJECT_DIRECTORY = Path(home_path)
 
-
 model_results = PROJECT_DIRECTORY / "model_results"
+model_results_supervised_green = PROJECT_DIRECTORY / "model_results" / "supervised/green"
+model_results_supervised_yellow = PROJECT_DIRECTORY / "model_results" / "supervised/yellow"
 
 # training and validation
 labels_csv = PROJECT_DIRECTORY / "data/labels.csv"
@@ -57,6 +63,8 @@ aug_cropped_train_val_masks = PROJECT_DIRECTORY / "data/train_val/aug_cropped" /
 test_images = PROJECT_DIRECTORY / "data/test" / "original_images"
 test_masks = PROJECT_DIRECTORY / "data/test" / "original_masks"
 
+AugCropImagesFewShot = PROJECT_DIRECTORY / "data/train_val/aug_cropped_few_shot" / "images"
+AugCropMasksFewShot = PROJECT_DIRECTORY / "data/train_val/aug_cropped_few_shot" / "masks"
 
 # create folders needed for following modules
 if 'preprocessing' not in str(original_images):
@@ -70,6 +78,8 @@ if 'preprocessing' not in str(original_images):
     aug_cropped_train_val_masks.mkdir(parents=True, exist_ok=True)
     test_images.mkdir(parents=True, exist_ok=True)
     test_masks.mkdir(parents=True, exist_ok=True)
+    AugCropImagesFewShot.mkdir(parents=True, exist_ok=True)
+    AugCropMasksFewShot.mkdir(parents=True, exist_ok=True)
 
     model_results.mkdir(parents=True, exist_ok=True)
 

@@ -30,15 +30,17 @@ def model_inference(data_loader, model, vae_flag = False):
                 preds.extend(segm.detach().cpu())
                 images.extend(x)
                 targets.extend(y)
-            torch.cuda.empty_cache()
+                torch.cuda.empty_cache()
+
     else:
         for ix, (x, y) in enumerate(data_loader):
-            print("batch {} on {}".format(ix, len(data_loader)))
-            results = model(x.to(device)).cpu().detach()
-            preds.extend(results)
-            images.extend(x)
-            targets.extend(y)
-        torch.cuda.empty_cache()
+            with torch.no_grad():
+                print("batch {} on {}".format(ix, len(data_loader)))
+                results = model(x.to(device)).cpu().detach()
+                preds.extend(results)
+                images.extend(x)
+                targets.extend(y)
+                torch.cuda.empty_cache()
     return images, targets, preds
 
 

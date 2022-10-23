@@ -80,12 +80,9 @@ class ResUnet(nn.Module):
         # output
         #self.head = Heatmap2d(
         #    n_features_start, n_out, kernel_size=1, stride=1, padding=0)
-        if n_out > 1 and ae_bin:
-            self.head = HeatmapAE(
-            n_features_start, n_out, kernel_size=1, stride=1, padding=0)
-        else:
-            self.head = Heatmap(
-            n_features_start, n_out, kernel_size=1, stride=1, padding=0)
+
+        self.head = Heatmap(
+        n_features_start, n_out, kernel_size=1, stride=1, padding=0)
 
     def _forward_impl(self, x: Tensor) -> Tensor:
         downblocks = []
@@ -142,10 +139,10 @@ def c_resunet(arch='c-ResUnet', n_features_start: int = 16, n_out: int = 1, c0=T
     return _resunet(arch=arch, n_features_start=n_features_start, n_out=n_out, c0=c0, pretrained=pretrained,
                     progress=progress, **kwargs)
 
-def load_model(resume_path, device, n_features_start=16, n_out=1, ae_bin=False, fine_tuning=False
+def load_model(resume_path, device, n_features_start=16, n_out=1, fine_tuning=False
                ,unfreezed_layers=1):
 
-    model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out, ae_bin=ae_bin,
+    model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out,
                                       device=device).to(device))
 
     checkpoint_file = torch.load(resume_path)

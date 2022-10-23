@@ -56,7 +56,7 @@ def metric_reports_th_sweep(args, images_path, targets_path, model_path, save_me
                          pretrained=False, progress=True)).to(device)
         model.load_state_dict(torch.load(model_path))
         vae_flag = True
-    else:
+    elif args.architecture == 'normal':
         model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=1, c0=c0,
                 pretrained = False, progress= True)).to(device)
         model.load_state_dict(torch.load(model_path))
@@ -99,14 +99,16 @@ if __name__ == "__main__":
     #                    help='the folder including the masks to crop')
     #parser.add_argument('--model_name', nargs="?", default='c-resunet',
 
-    parser.add_argument('--architecture', default='vae', help='type of architecture')
+    parser.add_argument('--architecture', default='normal', help='type of architecture to test [normal, vae]')
     args = parser.parse_args()
 
-    model_name = "2path_2head_2.h5" #c-resunet_21.h5
+    model_name = "c-resunet_yellow_34_ft_green_4_unfr_dec.h5" #c-resunet_21.h5
     test_images_path = str(test_images.as_posix().replace('/evaluation', ''))
     test_masks_path = str(test_masks.as_posix().replace('/evaluation', ''))
-    model_path = '../model_results/supervised/green/{}/{}'.format(model_name.replace('.h5',''), model_name)
-    save_metrics_path = '../model_results/supervised/green/{}/'.format(model_name.replace('.h5',''))
+    model_train_list = ['supervised', 'fine_tuning']
+    model_train = model_train_list[1]
+    model_path = '../model_results/{}/green/{}/{}'.format(model_train, model_name.replace('.h5', ''), model_name)
+    save_metrics_path = '../model_results/{}/green/{}/'.format(model_train, model_name.replace('.h5',''))
 
     metric_reports_th_sweep(args, Path(test_images_path), Path(test_masks_path), model_path, save_metrics_path=save_metrics_path,
                             batch_size=4, c0=True, transform=None, th_min=0.3, th_max=1,

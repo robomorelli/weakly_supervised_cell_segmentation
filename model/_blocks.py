@@ -153,7 +153,6 @@ class Heatmap(nn.Module):
 class HeatmapAE(nn.Module):
     def __init__(self, n_in, n_out=1, kernel_size=1, stride=1, padding=0):
         super(HeatmapAE, self).__init__()
-        self.conv2d_binary = nn.Conv2d(n_in, 1, kernel_size, stride, padding)
         self.conv2d = nn.Conv2d(1, n_out, kernel_size, stride, padding)
         self.act = nn.Sigmoid()
 

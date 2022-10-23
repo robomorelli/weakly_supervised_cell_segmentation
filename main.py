@@ -18,7 +18,6 @@ from pytorch_metric_learning import losses, reducers, miners, distances, regular
 sys.path.append('..')
 from config import *
 
-
 np.random.seed(40)
 # The below is necessary for starting core Python generated random numbers
 # in a well-defined state.
@@ -48,20 +47,22 @@ def train(args):
                                                            shuffle_dataset=True, random_seed=42, ngpus=ndevices,
                                                            ae=args.ae,
                                                            few_shot=args.few_shot)
+    if args.resume or args.fine_tuning:
+        resume_path = str(args.resume_path) + '/{}/{}'.format(args.model_name, args.model_name + '.h5')
+    if args.new_model_name:
+        args.model_name = args.new_model_name
 
     if args.fine_tuning:
         if args.few_shot:
-            added_path = 'fine_tuning/few_shot/{}/'.format(args.dataset)
-        elif args.few_shot_merged:
-            added_path = 'fine_tuning/few_shot_merged/{}/'.format(args.dataset)
+            added_path = '/fine_tuning/few_shot/{}/{}/'.format(args.dataset, args.model_name)
         else:
-            added_path = 'fine_tuning/{}/'.format(args.dataset)
+            added_path = '/fine_tuning/{}/{}/'.format(args.dataset, args.model_name)
     elif args.ae:
-        added_path = 'autoencoder/{}/'.format(args.dataset)
+        added_path = '/autoencoder/{}/{}/'.format(args.dataset, args.model_name)
     elif args.few_shot:
-        added_path = 'few_shot/{}/'.format(args.dataset)
+        added_path = '/few_shot/{}/{}/'.format(args.dataset, args.model_name)
     else:
-        added_path = 'supervised/{}/{}/'.format(args.dataset, args.model_name.replace('h5', ''))
+        added_path = '/supervised/{}/{}/{}/'.format(args.dataset, args.model_name.replace('h5', ''), args.model_name)
 
     if os.path.exists(str(args.save_model_path) + added_path):
         print("path exists")
@@ -69,23 +70,23 @@ def train(args):
         os.makedirs(str(args.save_model_path) + added_path)
 
     if args.resume or args.fine_tuning:
-        resume_path = args.save_model_path + added_path + args.model_name + '.h5'
         if os.path.isfile(resume_path):
             print("=> loading checkpoint '{}'".format(resume_path))
             if device == 'cpu':
                 checkpoint = torch.load(resume_path)
             else:
-                if args.from_ae_to_bin:
+                if args.from_ae:
                     # to replace n_out = 3 with ###new weight#### for a binary layer on top (use to fine tune an autoencoder)
                     model = load_ae_to_bin(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
                                            fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
                 else:
                     model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
-                                       ae_bin=args.ae_bin,
-                                       fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
 
+                                       fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
             if args.new_model_name:
                 args.model_name = args.new_model_name
+
+        # No checkpoint, model form scratch with or without co
         else:
             print("=> no checkpoint found at '{}'".format(resume_path))
             if args.c0:
@@ -94,7 +95,6 @@ def train(args):
             else:
                 model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out, c0=False,
                                                   pretrained=False, progress=True)).to(device)
-
     else:
         if args.c0:
             model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out,
@@ -102,7 +102,7 @@ def train(args):
                                               device=device).to(device))
         else:
             model = nn.DataParallel(
-                c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out, c0=False, ae_bin=args.ae_bin,
+                c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out, c0=False,
                           pretrained=False, progress=True,
                           device=device).to(device))
 
@@ -167,7 +167,7 @@ def train(args):
                           .format(val_loss, temp_val_loss, args.save_model_path.as_posix() + '/' + added_path + args.model_name))
                         print("saving model to {}".format(args.save_model_path.as_posix() + '/' + added_path + args.model_name))
                         path_posix = args.save_model_path.as_posix() + '/' + added_path + args.model_name
-                        save_path = path_posix + '_{}.h5'.format(epoch)
+                        save_path = path_posix + '.h5'
                         torch.save(model.state_dict(), save_path)
                         val_loss = temp_val_loss
 
@@ -205,9 +205,11 @@ if __name__ == "__main__":
                         help='use a small dataset to train the model')
     parser.add_argument('--resume', action='store_true',
                         help='resume training of the model specified with the model name')
+    parser.add_argument('--resume_path', default=model_results_supervised_yellow,
+                        help='checkpoint to load to train or fine tune')
     parser.add_argument('--fine_tuning', action='store_true',
                         help='fine tune the model or not')
-    parser.add_argument('--from_ae_to_bin', action='store_true',
+    parser.add_argument('--from_ae', action='store_true',
                         help='fine tune the model coming from autoencoder with pre binary layer')
     parser.add_argument('--unfreezed_layers', default=1,
                         help='number of layer to unfreeze for fine tuning can be a number or a block [encoder, decoder, head]')
