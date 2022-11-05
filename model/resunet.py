@@ -140,48 +140,297 @@ def c_resunet(arch='c-ResUnet', n_features_start: int = 16, n_out: int = 1, c0=T
                     progress=progress, **kwargs)
 
 def load_model(resume_path, device, n_features_start=16, n_out=1, fine_tuning=False
-               ,unfreezed_layers=1):
+               ,unfreezed_layers=1, vae=False):
 
-    model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out,
+    if vae:
+        model = nn.DataParallel(c_resunetVAE(arch='c-ResUnetVAE', n_features_start=n_features_start, n_out=n_out,
+                                          device=device).to(device))
+
+    else:
+        model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out,
                                       device=device).to(device))
 
     checkpoint_file = torch.load(resume_path)
     model.load_state_dict(checkpoint_file, strict=False)
     if fine_tuning:
         print('fine_tuning')
-        if unfreezed_layers.isdecimal():
-            unfreezed_layers = int(unfreezed_layers)
-        for block in list(list(model.children())[0].named_children())[::-1]:  # encoder, decoder, head
-            #print('unfreezing {} of {}'.format(unfreezed_layers, block))
-            if block[0] == 'head':
-                for nc, cc in list(block[1].named_children())[::-1]:  # [1] because 0 is the name
-                    if unfreezed_layers > 0: #and isinstance(c, nn.Conv2d):
-                        for n, p in cc.named_parameters():
-                            p.requires_grad_(True)
-                            #print(block, n, p.requires_grad)
-                        print('unfreezed {}'.format(nc))
-                    else:
-                        for n, p in cc.named_parameters():
-                            p.requires_grad_(False)
-                            #print(block, n, p.requires_grad)
-                unfreezed_layers = int(unfreezed_layers) - 1
-
-            else:
-                for nc, cc in list(block[1].named_children())[::-1]:
-                    if unfreezed_layers > 0:
-                        for n, p in cc.named_parameters():
-                            p.requires_grad_(True)
-                        print('unfreezed {}'.format(nc))
-                    else:
-                        for n, p in cc.named_parameters():
-                            p.requires_grad_(False)
-                        print('keep freezed {}'.format(nc))
+        #if unfreezed_layers.isdecimal():
+        if len(unfreezed_layers) == 1:
+            unfreezed_layers = int(unfreezed_layers[0])
+            for block in list(list(model.children())[0].named_children())[::-1]:  # encoder, decoder, head
+                # print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                if block[0] == 'head':
+                    for nc, cc in list(block[1].named_children())[::-1]:  # [1] because 0 is the name
+                        if unfreezed_layers > 0:  # and isinstance(c, nn.Conv2d):
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                                # print(block, n, p.requires_grad)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                                # print(block, n, p.requires_grad)
                     unfreezed_layers = int(unfreezed_layers) - 1
 
-        print('requires grad for each layer:')
-        for block in list(list(model.children())[0].named_children())[::-1]:
-            for n, p in list(block[1].named_parameters())[::-1]:
-                print(n, p.requires_grad)
+                else:
+                    for nc, cc in list(block[1].named_children())[::-1]:
+                        if unfreezed_layers > 0:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                            print('keep freezed {}'.format(nc))
+                        unfreezed_layers = int(unfreezed_layers) - 1
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children())[::-1]:
+                for n, p in list(block[1].named_parameters())[::-1]:
+                    print(n, p.requires_grad)
+
+        elif len(unfreezed_layers) == 2 and int(unfreezed_layers[0]) == 0:
+            unfreezed_layers_start = int(unfreezed_layers[0])
+            unfreezed_layers_end = int(unfreezed_layers[1])
+
+            unfreezed_layers = unfreezed_layers_end - unfreezed_layers_start
+
+            for block in list(list(model.children())[0].named_children()):  # encoder, decoder, head
+                #print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                if block[0] == 'head':
+                    for nc, cc in list(block[1].named_children()):  # [1] because 0 is the name
+                        if unfreezed_layers > 0: #and isinstance(c, nn.Conv2d):
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                                #print(block, n, p.requires_grad)
+                            print('unfreezed {}'.format(nc))
+                            unfreezed_layers = int(unfreezed_layers) - 1
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                                #print(block, n, p.requires_grad)
+
+
+                else:
+                    for nc, cc in list(block[1].named_children()):
+                        if unfreezed_layers > 0:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                            print('keep freezed {}'.format(nc))
+                        unfreezed_layers = int(unfreezed_layers) - 1
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children()):
+                for n, p in list(block[1].named_parameters()):
+                    print(n, p.requires_grad)
+
+        elif len(unfreezed_layers) == 2 and int(unfreezed_layers[0]) != 0:
+            unfreezed_layers_start = int(unfreezed_layers[0])
+            unfreezed_layers_end = int(unfreezed_layers[1])
+            ixs_list = np.arange(unfreezed_layers_start, unfreezed_layers_end, 1)
+            unfreezed_layers = unfreezed_layers_end - unfreezed_layers_start
+            ix = 0
+            for block in list(list(model.children())[0].named_children()):  # encoder, decoder, head
+                #print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                    if block[0] == 'head':
+                        for nc, cc in list(block[1].named_children()):
+                            if ix in ixs_list:# [1] because 0 is the name
+                                if unfreezed_layers > 0: #and isinstance(c, nn.Conv2d):
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(True)
+                                        #print(block, n, p.requires_grad)
+                                    print('unfreezed {}'.format(nc))
+                                else:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(False)
+                                        #print(block, n, p.requires_grad)
+                            else:
+                                for n, p in cc.named_parameters():
+                                    p.requires_grad_(False)
+                                    # print(block, n, p.requires_grad)
+                            ix += 1
+
+
+                    else:
+                        for nc, cc in list(block[1].named_children()):
+                            if 'pool' not in nc:
+                                if ix in ixs_list:
+                                    if unfreezed_layers > 0:
+                                        for n, p in cc.named_parameters():
+                                            p.requires_grad_(True)
+                                        print('unfreezed {}'.format(nc))
+                                    else:
+                                        for n, p in cc.named_parameters():
+                                            p.requires_grad_(False)
+                                        print('keep freezed {}'.format(nc))
+                                    #unfreezed_layers = int(unfreezed_layers) - 1
+
+                                else:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(False)
+                                    print('keep freezed {}'.format(nc))
+
+                                ix += 1
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children()):
+                for n, p in list(block[1].named_parameters()):
+                    print(n, p.requires_grad)
+
+
+        elif len(unfreezed_layers) == 2 and int(unfreezed_layers[0]) == int(unfreezed_layers[0]):
+            unfreezed_layers_start = int(unfreezed_layers[0])
+            unfreezed_layers_end = int(unfreezed_layers[1])
+
+            unfreezed_layers = unfreezed_layers_end - unfreezed_layers_start
+
+            for block in list(list(model.children())[0].named_children()):  # encoder, decoder, head
+                #print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                if block[0] == 'head':
+                    for nc, cc in list(block[1].named_children()):  # [1] because 0 is the name
+                        if unfreezed_layers > 0: #and isinstance(c, nn.Conv2d):
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                                #print(block, n, p.requires_grad)
+                            print('unfreezed {}'.format(nc))
+                            unfreezed_layers = int(unfreezed_layers) - 1
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                                #print(block, n, p.requires_grad)
+
+
+                else:
+                    for nc, cc in list(block[1].named_children()):
+                        if unfreezed_layers > 0:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                            print('keep freezed {}'.format(nc))
+                        unfreezed_layers = int(unfreezed_layers) - 1
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children()):
+                for n, p in list(block[1].named_parameters()):
+                    print(n, p.requires_grad)
+
+
+        elif int(unfreezed_layers[0]) == int(unfreezed_layers[1]) and len(unfreezed_layers) ==3:
+
+
+            unfreezed_layers_num = int(unfreezed_layers[0])
+            last_layer = int(unfreezed_layers[-1])
+
+            if last_layer not in [0,1]:
+                raise Exception("last_layer is not 0 or 1")
+
+            for block in list(list(model.children())[0].named_children()):  # encoder, decoder, head
+                #print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                if block[0] == 'head':
+                    for nc, cc in list(block[1].named_children()):  # [1] because 0 is the name
+                        if last_layer: #and isinstance(c, nn.Conv2d):
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                                #print(block, n, p.requires_grad)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                                #print(block, n, p.requires_grad)
+
+                else:
+                    for nc, cc in list(block[1].named_children()):
+                        if str(unfreezed_layers_num) in nc:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                            print('keep freezed {}'.format(nc))
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children()):
+                for n, p in list(block[1].named_parameters()):
+                    print(n, p.requires_grad)
+
+
+        elif int(unfreezed_layers[0]) == int(unfreezed_layers[1]) and len(unfreezed_layers) > 2:
+
+            unfreezed_layers_names = []
+            last_layer = int(unfreezed_layers.pop())
+            ixs = []
+            for ix, x in enumerate(unfreezed_layers):
+                if not x.isdecimal():
+                    unfreezed_layers_names.append(str(x))
+                else:
+                    ixs.append(ix)
+
+            unfreezed_layers = [unfreezed_layers[ix] for ix in ixs]
+            unfreezed_layers = np.unique(unfreezed_layers )
+
+            dict_name = {'1': ['conv_block', 'upconv_block1', 'pool1'],
+                         '2': ['residual_block1', 'upconv_block2', 'pool2'],
+                         '3': ['residual_block2', 'upconv_block3', 'pool3']}
+            try:
+                unfreezed_layers_names_temp = [dict_name[x] for x in unfreezed_layers]
+                for li in unfreezed_layers_names_temp:
+                    unfreezed_layers_names.extend(li)
+            except:
+                print(' no numeric value')
+
+            if last_layer not in [0, 1]:
+                raise Exception("last_layer is not 0 or 1")
+
+            for block in list(list(model.children())[0].named_children()):  # encoder, decoder, head
+                # print('unfreezing {} of {}'.format(unfreezed_layers, block))
+                if block[0] == 'head':
+                    for nc, cc in list(block[1].named_children()):  # [1] because 0 is the name
+                        if last_layer:  # and isinstance(c, nn.Conv2d):
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(True)
+                                # print(block, n, p.requires_grad)
+                            print('unfreezed {}'.format(nc))
+                        else:
+                            for n, p in cc.named_parameters():
+                                p.requires_grad_(False)
+                                # print(block, n, p.requires_grad)
+
+                else:
+                    for nc, cc in list(block[1].named_children()):
+                        for x in unfreezed_layers_names:
+                            if x.isdecimal():
+                                if x in nc:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(True)
+                                    print('unfreezed {}'.format(nc))
+                                    break
+                                else:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(False)
+                                    print('keep freezed {}'.format(nc))
+                            else:
+                                if x == nc:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(True)
+                                    print('unfreezed {}'.format(nc))
+                                    break
+                                else:
+                                    for n, p in cc.named_parameters():
+                                        p.requires_grad_(False)
+                                    print('keep freezed {}'.format(nc))
+
+            print('requires grad for each layer:')
+            for block in list(list(model.children())[0].named_children()):
+                for n, p in list(block[1].named_parameters()):
+                    print(n, p.requires_grad)
 
     return model
 
@@ -452,17 +701,17 @@ class ResUnetVAE(nn.Module):
             'upconv_block3NoConcat': UpResidualBlockNoConcat(2*n_features_start, n_features_start),
         })
 
-        self.decoder_conc = nn.ModuleDict({
+        #self.decoder_conc = nn.ModuleDict({
             # block 6
-            'upconv_block1NoConv': UpResidualBlockNoConv(n_in=8 * n_features_start, n_out=4 * n_features_start),
+        #    'upconv_block1NoConv': UpResidualBlockNoConv(n_in=8 * n_features_start, n_out=4 * n_features_start),
             #'upconv_block1': UpResidualBlockVAE(n_in=4 * n_features_start, n_out=4 * n_features_start),
 
             # block 7
-            'upconv_block2NoConvt': UpResidualBlockNoConv(4 * n_features_start, 2 * n_features_start),
+        #    'upconv_block2NoConvt': UpResidualBlockNoConv(4 * n_features_start, 2 * n_features_start),
 
             # block 8
-            'upconv_block3NoConv': UpResidualBlockNoConv(2*n_features_start, n_features_start),
-        })
+        #    'upconv_block3NoConv': UpResidualBlockNoConv(2*n_features_start, n_features_start),
+        #})
 
         self.headSeg = HeatmapVAE(self.n_features_start, self.n_out, kernel_size=1, stride=1, padding=0)
         self.headRec = HeatmapVAERecon(self.n_features_start, self.n_outRec, kernel_size=1, stride=1, padding=0)

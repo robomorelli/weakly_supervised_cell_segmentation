@@ -1,13 +1,11 @@
-from torch import nn
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
-import torch.nn.functional as F
-import math
+
 import sys
+
 
 sys.path.append('..')
 from config import *
 from dataset_loader.image_loader import *
+from model.losses import *
 
 clip_x_to0 = 1e-4
 
@@ -164,78 +162,122 @@ class EarlyStopping():
                 print('INFO: Early stopping')
                 self.early_stop = True
                 
-def WeightedLoss(zero_weight, one_weight):
 
-    def weighted_binary_crossentropy(y_pred, y_true):
+def train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
+                save_model_path, added_path, scheduler, early_stopping, model_name, epochs=100):
+    val_loss = 10**6
+    for epoch in range(epochs):
+        model.train()
+        with tqdm(train_loader, unit="batch") as tepoch:
+            for i, (image, target) in enumerate(tepoch):
+                tepoch.set_description(f"Epoch {epoch}")
+                optimizer.zero_grad()
 
-        #b_ce = nn.BCEWithLogitsLoss(reduction = 'none')(y_true[:,0:1,:,:].float(), y_pred[:,0:1,:,:].float()) #try without reduction
-        b_ce = nn.BCELoss(reduction='none')(y_pred[:, 0:1, :, :].float(), y_true[:, 0:1, :, :].float())
-        # Apply the weights
-        class_weight_vector = y_true[:,0:1,:,:] * one_weight + (1. - y_true[:,0:1,:,:]) * zero_weight
+                y = target.to(device)
+                x = image.to(device)
+                out = model(x)
+                loss = criterion(out, y)
+                loss.backward()
+                optimizer.step()
+                tepoch.set_postfix(loss=loss.item())
+            ###############################################
+            # eval mode for evaluation on validation dataset_loader
+            ###############################################
+            with torch.no_grad():
+                model.eval()
+                temp_val_loss = 0
+                with tqdm(val_loader, unit="batch") as vepoch:
+                    for i, (image, target) in enumerate(vepoch):
+                        optimizer.zero_grad()
 
-        weight_vector = class_weight_vector * y_true[:,1:2,:,:]
-        weighted_b_ce = weight_vector * b_ce
+                        y = target.to(device)
+                        x = image.to(device)
+                        out = model(x)
+                        loss = criterion(out, y)
+                        temp_val_loss += loss
+                        if i % 10 == 0:
+                            print("VALIDATION Loss: {} batch {} on total of {}".format(loss.item(),
+                                                                                       i, len(val_loader)))
 
-        #we should first make a sum reduction on rows and column and then take a mean over element of batch
-        #s1 = torch.sum(weighted_b_ce, axis=-2)
-        #s2 = torch.sum(s1, axis=-1)
+                    temp_val_loss = temp_val_loss / len(val_loader)
+                    print('validation_loss {}'.format(temp_val_loss))
+                    scheduler.step(temp_val_loss)
+                    if temp_val_loss < val_loss:
+                        print('val_loss improved from {} to {}, saving model to {}' \
+                          .format(val_loss, temp_val_loss, save_model_path.as_posix() + '/' + added_path + model_name))
+                        print("saving model to {}".format(save_model_path.as_posix() + '/' + added_path + model_name))
+                        path_posix = save_model_path.as_posix() + '/' + added_path + model_name
+                        save_path = path_posix + '.h5'
+                        val_loss = temp_val_loss
+                        torch.save({'model_state_dict':model.state_dict(),
+                                    'epoch':epoch,
+                                    'lr':optimizer.param_groups[0]['lr'],
+                                    'val_loss':val_loss}, save_path)
 
-        # Return the mean error
-        return torch.mean(weighted_b_ce)
-
-    return weighted_binary_crossentropy
-
-def WeightedLossAE(zero_weight, one_weight):
-
-    def weighted_binary_crossentropy(y_pred, y_true):
-
-        #channel = np.random.randint(0,2,1)
-        b_ce = nn.BCELoss(reduction='none')(y_pred[:, 0:1, :, :].float(), y_true[:, 0:1, :, :].float())
-        # Apply the weights
-        weighted_b_ce = y_true[:,1:2,:,:] * b_ce
-
-        #we should first make a sum reduction on rows and column and then take a mean over element of batch
-        #s1 = torch.sum(weighted_b_ce, axis=-2)
-        #s2 = torch.sum(s1, axis=-1)
-
-        # Return the mean error
-        return torch.mean(weighted_b_ce)
-
-    return weighted_binary_crossentropy
-
-def UnweightedLoss(zero_weight, one_weight):
-
-    def weighted_binary_crossentropy(y_pred, y_true):
-
-        #b_ce = nn.BCEWithLogitsLoss(reduction = 'none')(y_true[:,0:1,:,:].float(), y_pred[:,0:1,:,:].float()) #try without reduction
-        b_ce = nn.BCELoss(reduction='none')(y_pred[:, 0:1, :, :].float(), y_true[:, 0:1, :, :].float())
-        # Apply the weights
-        class_weight_vector = y_true[:,0:1,:,:] * one_weight + (1. - y_true[:,0:1,:,:]) * zero_weight
-        weighted_b_ce = class_weight_vector * b_ce
-
-        # Return the mean error
-        return torch.mean(weighted_b_ce)
-
-    return weighted_binary_crossentropy
-
-def WeightedNLLLoss(zero_weight, one_weight):
-
-    def weighted_NLL(mu, sigma, y):
-
-        au = 0.5*torch.log(2*np.pi*(sigma*sigma)) #aleatoric uncertainty
-        ne = (torch.square(mu - y))/(2*torch.square(sigma))#normalized error
-        nll_loss = au + ne
-
-        # Apply the weights
-        class_weight_vector = y[:,0:1,:,:] * one_weight + (1. - y[:,0:1,:,:]) * zero_weight
-
-        weight_vector = class_weight_vector * y[:,1:2,:,:]
-        weighted_nll = weight_vector * nll_loss
-
-        # Return the mean error
-        return torch.mean(weighted_nll)
-
-    return weighted_NLL
+                    early_stopping(temp_val_loss)
+                    if early_stopping.early_stop:
+                        break
 
 
+def vae_train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
+                save_model_path, added_path, scheduler, early_stopping, model_name, epochs=100, scale=10, kld_factor=0.6):
+    val_loss = 10**6
+    for epoch in range(epochs):
+        model.train()
+        with tqdm(train_loader, unit="batch") as tepoch:
+            for i, (image, target) in enumerate(tepoch):
+                tepoch.set_description(f"Epoch {epoch}")
+                optimizer.zero_grad()
 
+                y = target.to(device)
+                x = image.to(device)
+
+                mu, sigma, segm, (mu_p, sigma_p) = model(x)
+                segm_loss = criterion(segm, y)
+                recon_loss, au, ne, au_1ch, ne_1ch = loss_VAE_rec(mu_p, sigma_p, x)
+
+                KLD = KL_loss_forVAE(mu, sigma)
+                loss = scale * recon_loss + kld_factor*KLD + scale*segm_loss
+
+                loss.backward()
+                optimizer.step()
+                tepoch.set_postfix(loss=loss.item(), nll = recon_loss.item(), KLD=KLD.item()*kld_factor, segm_loss=scale*segm_loss.item())
+            ###############################################
+            # eval mode for evaluation on validation dataset_loader
+            ###############################################
+            with torch.no_grad():
+                model.eval()
+                temp_val_loss = 0
+                with tqdm(val_loader, unit="batch") as vepoch:
+                    for i, (image, target) in enumerate(vepoch):
+                        optimizer.zero_grad()
+
+                        y = target.to(device)
+                        x = image.to(device)
+
+                        mu, sigma, segm, (mu_p, sigma_p) = model(x)
+                        segm_loss = criterion(segm, y)
+                        recon_loss, au, ne, au_1ch, ne_1ch = loss_VAE_rec(mu_p, sigma_p, x)
+
+                        KLD = KL_loss_forVAE(mu, sigma)
+                        loss = scale * recon_loss + kld_factor * KLD + scale * segm_loss
+
+                        temp_val_loss += loss
+                        if i % 10 == 0:
+                            print("VALIDATION Loss: {} batch {} on total of {}".format(loss.item(),
+                                                                                    i, len(val_loader)))
+
+                    scheduler.step(temp_val_loss)
+                    if temp_val_loss < val_loss:
+                        print('val_loss improved from {} to {}, saving model to {}' \
+                          .format(val_loss, temp_val_loss, save_model_path.as_posix() + '/' + added_path + model_name))
+                        print("saving model to {}".format(save_model_path.as_posix() + '/' + added_path + model_name))
+                        path_posix = save_model_path.as_posix() + '/' + added_path + model_name
+                        save_path = path_posix + '.h5'
+                        torch.save(model.state_dict(), save_path,
+                                   epoch)
+                        val_loss = temp_val_loss
+
+                    early_stopping(temp_val_loss)
+                    if early_stopping.early_stop:
+                        break

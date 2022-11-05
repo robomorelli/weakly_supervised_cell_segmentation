@@ -15,15 +15,15 @@ def main(args):
     if args.color == 'green':
         im_names = os.listdir(train_val_images)
         try:
-            shutil.rmtree(AugCropImagesFewShot)
+            shutil.rmtree(str(AugCropImagesFewShot) + '_{}'.format(args.few_shot))
         except:
             pass
-        os.makedirs(AugCropImagesFewShot, exist_ok=True)
+        os.makedirs(str(AugCropImagesFewShot) + '_{}'.format(args.few_shot), exist_ok=True)
         try:
-            shutil.rmtree(AugCropMasksFewShot)
+            shutil.rmtree(str(AugCropMasksFewShot) + '_{}'.format(args.few_shot))
         except:
             pass
-        os.makedirs(AugCropMasksFewShot, exist_ok=True)
+        os.makedirs(str(AugCropMasksFewShot) + '_{}'.format(args.few_shot), exist_ok=True)
 
         if args.few_shot != 'all':
             indexes = np.random.randint(0, len(im_names), args.few_shot)
@@ -35,8 +35,8 @@ def main(args):
         cropped_names = os.listdir(aug_cropped_train_val_images)
         for im_names in cropped_names:
             if '_'.join(im_names.split('_')[:-2]) + '.png' in to_sample_root:
-                shutil.copy(os.path.join(aug_cropped_train_val_images,im_names), os.path.join(AugCropImagesFewShot, im_names))
-                shutil.copy(os.path.join(aug_cropped_train_val_masks,im_names), os.path.join(AugCropMasksFewShot, im_names))
+                shutil.copy(os.path.join(aug_cropped_train_val_images,im_names), os.path.join(str(AugCropImagesFewShot) + '_{}'.format(args.few_shot), im_names))
+                shutil.copy(os.path.join(aug_cropped_train_val_masks,im_names), os.path.join(str(AugCropMasksFewShot) + '_{}'.format(args.few_shot), im_names))
 
     else:
         raise NotImplementedError

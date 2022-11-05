@@ -17,6 +17,7 @@ import argparse
 from pytorch_metric_learning import losses, reducers, miners, distances, regularizers
 sys.path.append('..')
 from config import *
+from model.utils import train_cycle, vae_train_cycle
 
 np.random.seed(40)
 # The below is necessary for starting core Python generated random numbers
@@ -41,7 +42,7 @@ def train(args):
     else:
         n_out = 1
 
-    train_loader, validation_loader = load_data_train_eval(dataset=args.dataset,
+    train_loader, val_loader = load_data_train_eval(dataset=args.dataset,
                                                            batch_size=args.bs, validation_split=0.3,
                                                            grayscale=False, num_workers=num_workers,
                                                            shuffle_dataset=True, random_seed=42, ngpus=ndevices,
@@ -79,9 +80,12 @@ def train(args):
                     model = load_ae_to_bin(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
                                            fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
                 else:
-                    model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
-
-                                       fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
+                    if args.vae:
+                        model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
+                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers, vae =True)
+                    else:
+                        model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
+                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
             if args.new_model_name:
                 args.model_name = args.new_model_name
 
@@ -125,54 +129,15 @@ def train(args):
     elif args.loss_type == 'unweighted':
         criterion = UnweightedLoss(1, 1.5)  # not for autoencoder but segmentation weighted only on the class type
     # torch.autograd.set_detect_anomaly(True)
-    for epoch in range(args.epochs):
-        model.train()
-        with tqdm(train_loader, unit="batch") as tepoch:
-            for i, (image, target) in enumerate(tepoch):
-                tepoch.set_description(f"Epoch {epoch}")
-                optimizer.zero_grad()
 
-                y = target.to(device)
-                x = image.to(device)
-                out = model(x)
-                loss = criterion(out, y)
-                loss.backward()
-                optimizer.step()
-                tepoch.set_postfix(loss=loss.item())
-            ###############################################
-            # eval mode for evaluation on validation dataset_loader
-            ###############################################
-            with torch.no_grad():
-                model.eval()
-                temp_val_loss = 0
-                with tqdm(validation_loader, unit="batch") as vepoch:
-                    for i, (image, target) in enumerate(vepoch):
-                        optimizer.zero_grad()
+    if args.vae:
+        vae_train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
+                    args.save_model_path, added_path, scheduler, early_stopping, args.model_name, epochs=100)
+    else:
+        train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
+                    args.save_model_path, added_path, scheduler, early_stopping, args.model_name, epochs=100)
 
-                        y = target.to(device)
-                        x = image.to(device)
-                        out = model(x)
-                        loss = criterion(out, y)
-                        temp_val_loss += loss
-                        if i % 10 == 0:
-                            print("VALIDATION Loss: {} batch {} on total of {}".format(loss.item(),
-                                                                                       i, len(validation_loader)))
 
-                    temp_val_loss = temp_val_loss / len(validation_loader)
-                    print('validation_loss {}'.format(temp_val_loss))
-                    scheduler.step(temp_val_loss)
-                    if temp_val_loss < val_loss:
-                        print('val_loss improved from {} to {}, saving model to {}' \
-                          .format(val_loss, temp_val_loss, args.save_model_path.as_posix() + '/' + added_path + args.model_name))
-                        print("saving model to {}".format(args.save_model_path.as_posix() + '/' + added_path + args.model_name))
-                        path_posix = args.save_model_path.as_posix() + '/' + added_path + args.model_name
-                        save_path = path_posix + '.h5'
-                        torch.save(model.state_dict(), save_path)
-                        val_loss = temp_val_loss
-
-                    early_stopping(temp_val_loss)
-                    if early_stopping.early_stop:
-                        break
 
 if __name__ == "__main__":
     ###############################################
@@ -208,10 +173,16 @@ if __name__ == "__main__":
                         help='checkpoint to load to train or fine tune')
     parser.add_argument('--fine_tuning', action='store_true',
                         help='fine tune the model or not')
+    parser.add_argument('--vae', action='store_const', const=True, default=False, help='make evaluation on test')
     parser.add_argument('--from_ae', action='store_true',
                         help='fine tune the model coming from autoencoder with pre binary layer')
-    parser.add_argument('--unfreezed_layers', default=1,
-                        help='number of layer to unfreeze for fine tuning can be a number or a block [encoder, decoder, head]')
+    parser.add_argument('--unfreezed_layers', nargs='+', default=1,
+                        help='number of layer to unfreeze for fine tuning can be a number or a block [encoder, decoder, head]'
+                             'if only one number it start from last layer and unfreeze n layers'
+                             'if 2 numbers and the first one is zero, it start from the beginning of the model and unfreeze n layers'
+                             'if 2 number but the firt one is not a zero it will be the first layer unfreezed untill the second number layer is reached'
+                             'if need to couple the conv block to unfreeze:'
+                             '1 1 colorspace conv_block bottleneck 1 (first residual_block')
     args = parser.parse_args()
 
     if not (Path(args.save_model_path).exists()):

@@ -7,6 +7,7 @@ from math import hypot
 import numpy as np
 import pandas as pd
 import torch
+import matplotlib.pyplot as plt
 import cv2
 
 #from keras import backend as K
@@ -14,7 +15,6 @@ import cv2
 
 cuda = torch.cuda.is_available()
 device = torch.device("cuda" if cuda else "cpu")
-
 
 def model_inference(data_loader, model, vae_flag = False):
     model.eval()
@@ -151,6 +151,7 @@ def compute_metrics(targets, preds_processed, filenames):
     F1_score, MAE, MedAE, MPE, accuracy, precision, recall = F1Score(metrics)
     summary = pd.DataFrame(columns=["F1_score", "MAE", "MedAE", "MPE", "accuracy", "precision", "recall"])
     summary.loc['summary'] = [F1_score, MAE, MedAE, MPE, accuracy, precision, recall]
+
     return(metrics, summary)
 
 def compute_metrics_global(targets, preds_processed):
