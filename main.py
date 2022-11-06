@@ -47,7 +47,7 @@ def train(args):
                                                            grayscale=False, num_workers=num_workers,
                                                            shuffle_dataset=True, random_seed=42, ngpus=ndevices,
                                                            ae=args.ae,
-                                                           few_shot=args.few_shot)
+                                                           few_shot=args.few_shot, num_samples=args.few_shot_samples)
     if args.resume or args.fine_tuning:
         resume_path = str(args.resume_path) + '/{}/{}'.format(args.model_name, args.model_name + '.h5')
         args.model_name = args.new_model_name
@@ -152,9 +152,9 @@ if __name__ == "__main__":
                         help='the name the model will have after resume another model name')
     parser.add_argument('--loss_type', nargs="?", default='unweighted',
                         help='what kind of loss among weighted, unweightedAE')
-    parser.add_argument('--patience', nargs="?", type=int, default=5, help='patience for checkpoint')
-    parser.add_argument('--patience_lr', nargs="?", type=int, default=3, help='patience for early stopping')
-    parser.add_argument('--lr', nargs="?", type=int, default= 0.0001, help='learning rate value')
+    parser.add_argument('--patience', nargs="?", type=int, default=10, help='patience for early stopping')
+    parser.add_argument('--patience_lr', nargs="?", type=int, default=3, help='patience for learning rate')
+    parser.add_argument('--lr', nargs="?", type=float, default= 0.0001, help='learning rate value')
     parser.add_argument('--epochs', nargs="?", type=int, default=200, help='number of epochs')
     parser.add_argument('--bs', nargs="?", type=int, default=8, help='batch size')
     parser.add_argument('--dataset', nargs="?", default='green', help='dataset flavour')
@@ -167,6 +167,8 @@ if __name__ == "__main__":
                         help='autoencoder without c0')
     parser.add_argument('--few_shot', action='store_true',
                         help='use a small dataset to train the model')
+    parser.add_argument('--few_shot_samples', type=int, default=100,
+                        help='how many images')
     parser.add_argument('--resume', action='store_true',
                         help='resume training of the model specified with the model name')
     parser.add_argument('--resume_path', default=model_results_supervised_yellow,
@@ -181,8 +183,10 @@ if __name__ == "__main__":
                              'if only one number it start from last layer and unfreeze n layers'
                              'if 2 numbers and the first one is zero, it start from the beginning of the model and unfreeze n layers'
                              'if 2 number but the firt one is not a zero it will be the first layer unfreezed untill the second number layer is reached'
-                             'if need to couple the conv block to unfreeze:'
-                             '1 1 colorspace conv_block bottleneck 1 (first residual_block')
+                             'if need to unfrezze couple by couple the conv block to unfreeze:'
+                             '1 1 colorspace conv_block bottleneck 1 :first residual_block and first upconv (1, 1) are unfreezed togheter '
+                             'with colorspace (colorspace) first conv block (conv_block)'
+                             'and last layer (the last 1 in the series)')
     args = parser.parse_args()
 
     if not (Path(args.save_model_path).exists()):
@@ -190,3 +194,11 @@ if __name__ == "__main__":
         os.makedirs(args.save_model_path)
     train(args=args)
 
+#next to do:
+#--few_shot --fine_tuning --model_name c-resunet_y_11 --unfreezed_layers 5 --new_model_name c-resunet_y_11_dec_bottl_fs_40  --few_shot_samples 40 (new training modalities)
+#--few_shot --fine_tuning --model_name c-resunet_y_11 --unfreezed_layers 1 --new_model_name c-resunet_y_11_last_fs_40  --few_shot_samples 40
+
+#--few_shot --lr 0.001 --model_name c-resunet_g_fs_30 --few_shot_samples 30
+
+#Template
+# --fine_tuning  --unfreezed_layers 5 --model_name c-resunet_y_3 --new_model_name c-resunet_y_3_dec_bottl

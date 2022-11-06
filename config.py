@@ -66,6 +66,9 @@ test_masks = PROJECT_DIRECTORY / "data/test" / "original_masks"
 AugCropImagesFewShot = PROJECT_DIRECTORY / "data/train_val/aug_cropped_few_shot" / "images"
 AugCropMasksFewShot = PROJECT_DIRECTORY / "data/train_val/aug_cropped_few_shot" / "masks"
 
+FewShot = PROJECT_DIRECTORY / "data/train_val/few_shot"
+FewShot = PROJECT_DIRECTORY / "data/train_val/few_shot"
+
 # create folders needed for following modules
 if 'preprocessing' not in str(original_images):
     original_images.mkdir(parents=True, exist_ok=True)

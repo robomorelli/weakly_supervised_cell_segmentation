@@ -92,7 +92,7 @@ class ConstrainedConv2d(nn.Conv2d):
 
 def load_data_train_eval(dataset='green', batch_size=16, validation_split=0.3, grayscale=False, num_workers=0,
                          shuffle_dataset=True, random_seed=42, ngpus=1,
-                         ae=False, few_shot=False):
+                         ae=False, few_shot=False,  num_samples=100):
 
 
     transform = T.Compose([T.Lambda(lambda x: x * 1. / 255),
@@ -102,11 +102,14 @@ def load_data_train_eval(dataset='green', batch_size=16, validation_split=0.3, g
                            T.ToTensor()
                            ])
     if dataset == 'green':
-        images_path = aug_cropped_train_val_images
-        masks_path = aug_cropped_train_val_masks
+        if few_shot:
+            images_path = str(AugCropImagesFewShot) + '_{}'.format(num_samples)
+            masks_path = str(AugCropMasksFewShot) + '_{}'.format(num_samples)
+        else:
+            images_path = aug_cropped_train_val_images
+            masks_path = aug_cropped_train_val_masks
     elif dataset == 'blu':
         raise NotImplementedError
-
 
     cells_images = CellsLoader(images_path, masks_path, val_split=0.3, grayscale=grayscale, transform=transform, ae=ae)
 
@@ -136,7 +139,7 @@ class EarlyStopping():
     Early stopping to stop the training when the loss does not improve after
     certain epochs.
     """
-    def __init__(self, patience=5, min_delta=0):
+    def __init__(self, patience=5, min_delta=0.0001):
         """
         :param patience: how many epochs to wait before stopping when loss is
                not improving

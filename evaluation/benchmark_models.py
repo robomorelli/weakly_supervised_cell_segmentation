@@ -172,21 +172,32 @@ if __name__ == "__main__":
     parser.add_argument('--thresh_opt', nargs="?", default='max', help='[kneedle, max]')
     args = parser.parse_args()
 
-    model_name = "c-resunet_y_11_1_2_bottle_last.h5" #"c-resunet_yellow_34_ft_green_4_unfr_dec.h5"
+    model_name = "c-resunet_y_11_last_fs_40.h5" #"c-resunet_yellow_34_ft_green_4_unfr_dec.h5"
 
-    val_images_path = str(train_val_images.as_posix().replace('/evaluation', ''))
-    val_masks_path = str(train_val_masks.as_posix().replace('/evaluation', ''))
-    test_images_path = str(test_images.as_posix().replace('/evaluation', ''))
-    test_masks_path = str(test_masks.as_posix().replace('/evaluation', ''))
 
-    model_train_list = ['supervised', 'fine_tuning']
-    model_train = model_train_list[1]
+    model_train_list = ['supervised', 'fine_tuning', 'few_shot']
+    model_train = model_train_list[1:]
+    if isinstance(model_train,list):
+        model_train = '/'.join(model_train)
     model_path = '../model_results/{}/green/{}/{}'.format(model_train, model_name.replace('.h5', ''), model_name)
     save_metrics_path = '../model_results/{}/green/{}/'.format(model_train, model_name.replace('.h5',''))
+
+    if 'few_shot' in model_train:
+        num_samples = int(model_name.replace('.h5', '').split('_')[-1])
+        val_images_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/images_{}'.format(num_samples)
+        val_masks_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/masks_{}'.format(num_samples)
+        batch_size = 4
+    else:
+        val_images_path = str(train_val_images.as_posix().replace('/evaluation', ''))
+        val_masks_path = str(train_val_masks.as_posix().replace('/evaluation', ''))
+        batch_size=4
+
+    test_images_path = str(test_images.as_posix().replace('/evaluation', ''))
+    test_masks_path = str(test_masks.as_posix().replace('/evaluation', ''))
 
     print('analyzing model', model_name)
 
     metric_reports_th_sweep(args, Path(val_images_path), Path(val_masks_path),
                             Path(test_images_path), Path(test_masks_path), model_path, save_metrics_path=save_metrics_path,
-                            batch_size=4, c0=True, transform=None, th_min=0.3, th_max=0.90,
+                            batch_size=batch_size, c0=True, transform=None, th_min=0.3, th_max=0.90,
                             steps=10, min_obj_size=2, foot=4, area_threshold=6, max_dist=3)

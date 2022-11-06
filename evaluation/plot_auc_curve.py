@@ -90,7 +90,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', nargs="?", default=model_results,
                         help='the folder including the masks to crop')
     parser.add_argument('--training_type', nargs="?", default='fine_tuning',
-                        help='[fine_tuning, supervised]')
+                        help='[fine_tuning, supervised, few_shot]')
     parser.add_argument('--model_name', nargs="?", default='c-resunet_21', help='model_name')
     parser.add_argument('--dataset', nargs="?", default='green', help='[green, yelow]')
     parser.add_argument('--all', action='store_const', const=True, default=True, help='make evaluation on test')
