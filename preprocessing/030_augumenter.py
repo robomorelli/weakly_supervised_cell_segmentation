@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Define parameters for crop.')
 
-    parser.add_argument('--split_num', default=5,
+    parser.add_argument('--split_num', default=3,
                         help='augumenteation factor')
 
     parser.add_argument('--images_path', nargs="?", default=cropped_train_val_images,

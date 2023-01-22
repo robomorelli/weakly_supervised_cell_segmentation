@@ -29,6 +29,8 @@ sys.path.append('..')
 from utils import read_image_masks, read_masks, read_images
 from config import *
 
+
+
 LoadImagesForCrop = str(train_val_images).replace('preprocessing/', '') + '/'
 LoadMasksForCrop = str(train_val_masks).replace('preprocessing/', '') + '/'
 
@@ -94,6 +96,8 @@ def make_cropper():
     images_names = check_output(["ls", LoadImagesForCrop]).decode("utf8").split()
 
     for ix, name in tqdm(enumerate(images_names),total=len(images_names)):
+        if 'RT' in name:
+            continue
         image, mask = read_image_masks(name, LoadImagesForCrop, LoadMasksForCrop)
         CroppedImages, CroppedMasks = cropper(image, mask)
 

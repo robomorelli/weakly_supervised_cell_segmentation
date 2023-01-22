@@ -21,7 +21,7 @@ from model.utils import InverseSquareRootLinearUnit, Dec1, ConstrainedConv2d, Li
 
 
 class ResUnet(nn.Module):
-    def __init__(self, n_features_start=16, n_out=1, c0=True):
+    def __init__(self, n_features_start=16, n_out=1, c0=True, ae_bin=False):
         super(ResUnet, self).__init__()
         pool_ks, pool_stride, pool_pad = 2, 2, 0
 
@@ -81,8 +81,12 @@ class ResUnet(nn.Module):
         #self.head = Heatmap2d(
         #    n_features_start, n_out, kernel_size=1, stride=1, padding=0)
 
-        self.head = Heatmap(
-        n_features_start, n_out, kernel_size=1, stride=1, padding=0)
+        if ae_bin:
+            self.head = HeatmapAE_bin(
+            n_features_start, n_out, kernel_size=1, stride=1, padding=0)
+        else:
+            self.head = Heatmap(
+            n_features_start, n_out, kernel_size=1, stride=1, padding=0)
 
     def _forward_impl(self, x: Tensor) -> Tensor:
         downblocks = []
@@ -116,9 +120,10 @@ def _resunet(
         #     layers: List[int],
         pretrained: bool,
         progress: bool,
+        ae_bin: bool,
         **kwargs,
 ) -> ResUnet:
-    model = ResUnet(n_features_start, n_out, c0)  # , **kwargs)
+    model = ResUnet(n_features_start, n_out, c0, ae_bin)  # , **kwargs)
     model.__name__ = arch
     # TODO: implement weights fetching if not present
     if pretrained:
@@ -128,7 +133,7 @@ def _resunet(
     return model
 
 def c_resunet(arch='c-ResUnet', n_features_start: int = 16, n_out: int = 1, c0=True, pretrained: bool = False,
-              progress: bool = True,
+              progress: bool = True, ae_bin: bool = False,
               **kwargs) -> ResUnet:
     r"""cResUnet model from `"Automating Cell Counting in Fluorescent Microscopy through Deep Learning with c-ResUnet"
     <https://www.nature.com/articles/s41598-021-01929-5>`_.
@@ -137,17 +142,17 @@ def c_resunet(arch='c-ResUnet', n_features_start: int = 16, n_out: int = 1, c0=T
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _resunet(arch=arch, n_features_start=n_features_start, n_out=n_out, c0=c0, pretrained=pretrained,
-                    progress=progress, **kwargs)
+                    progress=progress, ae_bin=ae_bin, **kwargs)
 
 def load_model(resume_path, device, n_features_start=16, n_out=1, fine_tuning=False
-               ,unfreezed_layers=1, vae=False):
+               ,unfreezed_layers=1, vae=False, ae_bin=False):
 
     if vae:
         model = nn.DataParallel(c_resunetVAE(arch='c-ResUnetVAE', n_features_start=n_features_start, n_out=n_out,
                                           device=device).to(device))
 
     else:
-        model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out,
+        model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=n_features_start, n_out=n_out, ae_bin=ae_bin,
                                       device=device).to(device))
 
     checkpoint_file = torch.load(resume_path)

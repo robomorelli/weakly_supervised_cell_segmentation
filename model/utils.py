@@ -92,7 +92,8 @@ class ConstrainedConv2d(nn.Conv2d):
 
 def load_data_train_eval(dataset='green', batch_size=16, validation_split=0.3, grayscale=False, num_workers=0,
                          shuffle_dataset=True, random_seed=42, ngpus=1,
-                         ae=False, few_shot=False,  num_samples=100):
+                         ae=False, few_shot=False,  num_samples=100, few_shot_random_seed=0,
+                         weakly_supervised=False,massive=False):
 
 
     transform = T.Compose([T.Lambda(lambda x: x * 1. / 255),
@@ -103,13 +104,29 @@ def load_data_train_eval(dataset='green', batch_size=16, validation_split=0.3, g
                            ])
     if dataset == 'green':
         if few_shot:
-            images_path = str(AugCropImagesFewShot) + '_{}'.format(num_samples)
-            masks_path = str(AugCropMasksFewShot) + '_{}'.format(num_samples)
+            if few_shot_random_seed:
+                images_path = str(AugCropImagesFewShot) + '_{}_{}'.format(num_samples, few_shot_random_seed)
+                masks_path = str(AugCropMasksFewShot) + '_{}_{}'.format(num_samples, few_shot_random_seed)
+            else:
+                images_path = str(AugCropImagesFewShot) + '_{}'.format(num_samples)
+                masks_path = str(AugCropMasksFewShot) + '_{}'.format(num_samples)
+        elif ae:
+            images_path = aug_cropped_train_val_images
+            masks_path = aug_cropped_train_val_masks
+        elif weakly_supervised:
+            images_path = aug_cropped_train_val_ws_images
+            masks_path = aug_cropped_train_val_ws_masks
+        elif massive:
+            images_path = aug_cropped_train_val_images_massive
+            masks_path = aug_cropped_train_val_masks_massive
         else:
             images_path = aug_cropped_train_val_images
             masks_path = aug_cropped_train_val_masks
     elif dataset == 'blu':
         raise NotImplementedError
+
+    print("images path", images_path)
+    print("masks path", masks_path)
 
     cells_images = CellsLoader(images_path, masks_path, val_split=0.3, grayscale=grayscale, transform=transform, ae=ae)
 
@@ -139,7 +156,7 @@ class EarlyStopping():
     Early stopping to stop the training when the loss does not improve after
     certain epochs.
     """
-    def __init__(self, patience=5, min_delta=0.0001):
+    def __init__(self, patience=5, min_delta=0.00005):
         """
         :param patience: how many epochs to wait before stopping when loss is
                not improving
@@ -169,7 +186,11 @@ class EarlyStopping():
 def train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
                 save_model_path, added_path, scheduler, early_stopping, model_name, epochs=100):
     val_loss = 10**6
+    lr0 = optimizer.param_groups[0]['lr']
+    train_loss_history = []
+    val_loss_history = []
     for epoch in range(epochs):
+        temp_train_loss = 0
         model.train()
         with tqdm(train_loader, unit="batch") as tepoch:
             for i, (image, target) in enumerate(tepoch):
@@ -182,7 +203,9 @@ def train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
                 loss = criterion(out, y)
                 loss.backward()
                 optimizer.step()
+                temp_train_loss += loss.item()
                 tepoch.set_postfix(loss=loss.item())
+
             ###############################################
             # eval mode for evaluation on validation dataset_loader
             ###############################################
@@ -205,6 +228,7 @@ def train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
                     temp_val_loss = temp_val_loss / len(val_loader)
                     print('validation_loss {}'.format(temp_val_loss))
                     scheduler.step(temp_val_loss)
+                    val_loss_history.append(temp_val_loss)
                     if temp_val_loss < val_loss:
                         print('val_loss improved from {} to {}, saving model to {}' \
                           .format(val_loss, temp_val_loss, save_model_path.as_posix() + '/' + added_path + model_name))
@@ -214,8 +238,10 @@ def train_cycle(model, criterion, optimizer, train_loader, val_loader, device,
                         val_loss = temp_val_loss
                         torch.save({'model_state_dict':model.state_dict(),
                                     'epoch':epoch,
-                                    'lr':optimizer.param_groups[0]['lr'],
-                                    'val_loss':val_loss}, save_path)
+                                    'lr':lr0,
+                                    'train_loss_history':train_loss_history,
+                                    'val_loss':val_loss,
+                                    'vall_loss_history': val_loss_history}, save_path)
 
                     early_stopping(temp_val_loss)
                     if early_stopping.early_stop:

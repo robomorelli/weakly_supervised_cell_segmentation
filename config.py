@@ -50,15 +50,33 @@ model_results_supervised_yellow = PROJECT_DIRECTORY / "model_results" / "supervi
 labels_csv = PROJECT_DIRECTORY / "data/labels.csv"
 original_images = PROJECT_DIRECTORY / "data" / "original/images"
 original_masks = PROJECT_DIRECTORY / "data" / "original/masks"
+original_masks_bigger = PROJECT_DIRECTORY / "data" / "original/masks_bigger"
+original_masks_gaussian = PROJECT_DIRECTORY / "data" / "original/masks_gaussian"
 
 train_val_images = PROJECT_DIRECTORY / "data/train_val" / "images"
 train_val_masks = PROJECT_DIRECTORY / "data/train_val" / "masks"
+train_val_masks_bigger = PROJECT_DIRECTORY / "data/train_val" / "bigger_masks"
+train_val_ws_masks = PROJECT_DIRECTORY / "data/train_val" / "weakly_supervised_masks"
+train_val_gauss_masks = PROJECT_DIRECTORY / "data/train_val" / "gaussian_masks"
 
 cropped_train_val_images = PROJECT_DIRECTORY / "data/train_val/cropped" / "images"
 cropped_train_val_masks = PROJECT_DIRECTORY / "data/train_val/cropped" / "masks"
+cropped_train_val_ws_images = PROJECT_DIRECTORY / "data/train_val/cropped" / "weakly_supervised_images"
+cropped_train_val_ws_masks = PROJECT_DIRECTORY / "data/train_val/cropped" / "weakly_supervised_masks"
+cropped_train_val_gauss_images = PROJECT_DIRECTORY / "data/train_val/cropped" / "gaussian_images"
+cropped_train_val_gauss_masks = PROJECT_DIRECTORY / "data/train_val/cropped" / "gaussian_masks"
 
 aug_cropped_train_val_images = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "images"
 aug_cropped_train_val_masks = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "masks"
+
+aug_cropped_train_val_images_massive = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "images_massive"
+aug_cropped_train_val_masks_massive = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "masks_massive"
+
+aug_cropped_train_val_ws_images = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "weakly_supervised_images"
+aug_cropped_train_val_ws_masks = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "weakly_supervised_masks"
+
+aug_cropped_train_val_gauss_images = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "gaussian_images"
+aug_cropped_train_val_gauss_masks = PROJECT_DIRECTORY / "data/train_val/aug_cropped" / "gaussian_masks"
 
 test_images = PROJECT_DIRECTORY / "data/test" / "original_images"
 test_masks = PROJECT_DIRECTORY / "data/test" / "original_masks"
@@ -73,16 +91,35 @@ FewShot = PROJECT_DIRECTORY / "data/train_val/few_shot"
 if 'preprocessing' not in str(original_images):
     original_images.mkdir(parents=True, exist_ok=True)
     original_masks.mkdir(parents=True, exist_ok=True)
+    original_masks_bigger.mkdir(parents=True, exist_ok=True)
+    train_val_masks_bigger.mkdir(parents=True, exist_ok=True)
     train_val_images.mkdir(parents=True, exist_ok=True)
     train_val_masks.mkdir(parents=True, exist_ok=True)
+    train_val_ws_masks.mkdir(parents=True, exist_ok=True)
+    train_val_gauss_masks.mkdir(parents=True, exist_ok=True)
+
     cropped_train_val_images.mkdir(parents=True, exist_ok=True)
     cropped_train_val_masks.mkdir(parents=True, exist_ok=True)
+    cropped_train_val_ws_images.mkdir(parents=True, exist_ok=True)
+    cropped_train_val_ws_masks.mkdir(parents=True, exist_ok=True)
+    cropped_train_val_gauss_images.mkdir(parents=True, exist_ok=True)
+    cropped_train_val_gauss_masks.mkdir(parents=True, exist_ok=True)
+
     aug_cropped_train_val_images.mkdir(parents=True, exist_ok=True)
     aug_cropped_train_val_masks.mkdir(parents=True, exist_ok=True)
+    aug_cropped_train_val_ws_images.mkdir(parents=True, exist_ok=True)
+    aug_cropped_train_val_ws_masks.mkdir(parents=True, exist_ok=True)
+    aug_cropped_train_val_gauss_images.mkdir(parents=True, exist_ok=True)
+    aug_cropped_train_val_gauss_masks.mkdir(parents=True, exist_ok=True)
+
+    aug_cropped_train_val_images_massive.mkdir(parents=True, exist_ok=True)
+    aug_cropped_train_val_masks_massive.mkdir(parents=True, exist_ok=True)
+
     test_images.mkdir(parents=True, exist_ok=True)
     test_masks.mkdir(parents=True, exist_ok=True)
     AugCropImagesFewShot.mkdir(parents=True, exist_ok=True)
     AugCropMasksFewShot.mkdir(parents=True, exist_ok=True)
+    original_masks_gaussian.mkdir(parents=True, exist_ok=True)
 
     model_results.mkdir(parents=True, exist_ok=True)
 

@@ -101,7 +101,6 @@ def metric_reports_th_sweep(args, val_images_path, val_masks_path, test_images_p
             summary.to_csv(summary_path + 'threshold_{}.csv'.format(str(th)))
 
 
-
     if args.test:
         summary_names = os.listdir(summary_path)
         summary_names_cleaned = []
@@ -115,7 +114,6 @@ def metric_reports_th_sweep(args, val_images_path, val_masks_path, test_images_p
                 summary_names_cleaned.append(sn)
             except:
                 print('exclunding ', sn)
-
 
         ixs = np.argsort(ths)
         ths.sort()
@@ -172,25 +170,35 @@ if __name__ == "__main__":
     parser.add_argument('--thresh_opt', nargs="?", default='max', help='[kneedle, max]')
     args = parser.parse_args()
 
-    model_name = "c-resunet_y_11_last_fs_40.h5" #"c-resunet_yellow_34_ft_green_4_unfr_dec.h5"
+    model_name = "c-resunet_g_aug_fix.h5" #"c-resunet_yellow_34_ft_green_4_unfr_dec.h5"
+    #model_name = "c-resunet_y_11_dec_bottl_fs_20_rs_100.h5"
 
-
-    model_train_list = ['supervised', 'fine_tuning', 'few_shot']
-    model_train = model_train_list[1:]
+    model_train_list = ['supervised', 'weakly_supervised', 'fine_tuning', 'few_shot']
+    model_train = model_train_list[0]
+    #model_train = model_train_list[1:]
     if isinstance(model_train,list):
         model_train = '/'.join(model_train)
     model_path = '../model_results/{}/green/{}/{}'.format(model_train, model_name.replace('.h5', ''), model_name)
     save_metrics_path = '../model_results/{}/green/{}/'.format(model_train, model_name.replace('.h5',''))
 
     if 'few_shot' in model_train:
-        num_samples = int(model_name.replace('.h5', '').split('_')[-1])
-        val_images_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/images_{}'.format(num_samples)
-        val_masks_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/masks_{}'.format(num_samples)
-        batch_size = 4
+        if 'rs' in model_name:
+            rs = int(model_name.replace('.h5', '').split('_')[-1])
+            num_samples = int(model_name.replace('.h5', '').split('_')[-3])
+            val_images_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/images_{}_{}'.format(num_samples,rs)
+            val_masks_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/masks_{}_{}'.format(num_samples,rs)
+            batch_size = 4
+            print('val images', val_images_path)
+            print('val masks', val_masks_path)
+        else:
+            num_samples = int(model_name.replace('.h5', '').split('_')[-1])
+            val_images_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/images_{}'.format(num_samples)
+            val_masks_path = str(FewShot.as_posix().replace('/evaluation', '')) + '/masks_{}'.format(num_samples)
+            batch_size = 4
     else:
         val_images_path = str(train_val_images.as_posix().replace('/evaluation', ''))
         val_masks_path = str(train_val_masks.as_posix().replace('/evaluation', ''))
-        batch_size=4
+        batch_size = 4
 
     test_images_path = str(test_images.as_posix().replace('/evaluation', ''))
     test_masks_path = str(test_masks.as_posix().replace('/evaluation', ''))
@@ -200,4 +208,5 @@ if __name__ == "__main__":
     metric_reports_th_sweep(args, Path(val_images_path), Path(val_masks_path),
                             Path(test_images_path), Path(test_masks_path), model_path, save_metrics_path=save_metrics_path,
                             batch_size=batch_size, c0=True, transform=None, th_min=0.3, th_max=0.90,
-                            steps=10, min_obj_size=2, foot=4, area_threshold=6, max_dist=3)
+                            steps=10, min_obj_size=4, foot=4, area_threshold=6, max_dist=3)
+                            # min_obj_size wa used with 2 for all the zperiments

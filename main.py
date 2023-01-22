@@ -36,7 +36,7 @@ def train(args):
         ndevices = 1
 
     num_workers = 0
-    if args.ae:
+    if args.ae or args.ae_bin:
         n_out = 3
         args.ae = True
     else:
@@ -47,10 +47,22 @@ def train(args):
                                                            grayscale=False, num_workers=num_workers,
                                                            shuffle_dataset=True, random_seed=42, ngpus=ndevices,
                                                            ae=args.ae,
-                                                           few_shot=args.few_shot, num_samples=args.few_shot_samples)
+                                                           few_shot=args.few_shot, num_samples=args.few_shot_samples,
+                                                           few_shot_random_seed=args.few_shot_random_seed,
+                                                           weakly_supervised=args.weakly_supervised,
+                                                           massive=args.massive)
+
+    # Take before the resume path and then change model name otherwise we don't found the model_name  to resume (because it change to new_model_name)
     if args.resume or args.fine_tuning:
         resume_path = str(args.resume_path) + '/{}/{}'.format(args.model_name, args.model_name + '.h5')
-        args.model_name = args.new_model_name
+        if args.few_shot_random_seed:
+            args.model_name = args.new_model_name + '_rs_{}'.format(args.few_shot_random_seed)
+            print(args.model_name)
+        else:
+            args.model_name = args.new_model_name
+    elif args.few_shot:
+        if args.few_shot_random_seed:
+            args.model_name = args.model_name + '_rs_{}'.format(args.few_shot_random_seed)
 
     if args.fine_tuning:
         if args.few_shot:
@@ -59,10 +71,18 @@ def train(args):
             added_path = '/fine_tuning/{}/{}/'.format(args.dataset, args.model_name)
     elif args.ae:
         added_path = '/autoencoder/{}/{}/'.format(args.dataset, args.model_name)
+    elif args.ae_bin:
+        added_path = 'autoencoder_bin/{}/{}/'.format(args.dataset, args.model_name)
     elif args.few_shot:
         added_path = '/few_shot/{}/{}/'.format(args.dataset, args.model_name)
+    elif args.weakly_supervised:
+        added_path = '/weakly_supervised/{}/{}/'.format(args.dataset, args.model_name)
     else:
-        added_path = '/supervised/{}/{}/{}/'.format(args.dataset, args.model_name.replace('h5', ''), args.model_name)
+        if args.massive:
+            added_path = '/supervised_massive/{}/{}/'.format(args.dataset, args.model_name.replace('h5', ''), args.model_name)
+        else:
+            added_path = '/supervised/{}/{}/'.format(args.dataset, args.model_name.replace('h5', ''),
+                                                                args.model_name)
 
     if os.path.exists(str(args.save_model_path) + added_path):
         print("path exists")
@@ -82,31 +102,32 @@ def train(args):
                 else:
                     if args.vae:
                         model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
-                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers, vae =True)
+                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers, vae =True
+                                           ,ae_bin=args.ae_bin)
                     else:
                         model = load_model(resume_path=resume_path, device=device, n_features_start=16, n_out=n_out,
-                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers)
-            if args.new_model_name:
-                args.model_name = args.new_model_name
+                                           fine_tuning=args.fine_tuning, unfreezed_layers=args.unfreezed_layers, ae_bin=args.ae_bin)
+            #if args.new_model_name:
+            #    args.model_name = args.new_model_name
 
         # No checkpoint, model form scratch with or without co
         else:
             print("=> no checkpoint found at '{}'".format(resume_path))
             if args.c0:
                 model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out,
-                                                  pretrained=False, progress=True)).to(device)
+                                                  pretrained=False, progress=True, ae_bin=args.ae_bin,)).to(device)
             else:
                 model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out, c0=False,
-                                                  pretrained=False, progress=True)).to(device)
+                                                  pretrained=False, progress=True, ae_bin=args.ae_bin,)).to(device)
     else:
         if args.c0:
             model = nn.DataParallel(c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out,
-                                              pretrained=False, progress=True,
+                                              pretrained=False, progress=True, ae_bin=args.ae_bin,
                                               device=device).to(device))
         else:
             model = nn.DataParallel(
                 c_resunet(arch='c-ResUnet', n_features_start=16, n_out=n_out, c0=False,
-                          pretrained=False, progress=True,
+                          pretrained=False, progress=True, ae_bin=args.ae_bin,
                           device=device).to(device))
 
     val_loss = 10 ** 16
@@ -121,13 +142,11 @@ def train(args):
     """
 
     if args.loss_type == 'weighted':
-        criterion = WeightedLoss(1, 1.5)
-    if args.loss_type == 'weightedAE':
-        criterion = WeightedLossAE(1, 1)
-    if args.loss_type == 'unweightedAE':
-        criterion = nn.BCELoss()
+        criterion = WeightedLoss(1, 1.5) #also weighted maps for touching cells
+    elif args.loss_type == 'unweightedAE':
+        criterion = nn.BCELoss() #bce for three channel input and target
     elif args.loss_type == 'unweighted':
-        criterion = UnweightedLoss(1, 1.5)  # not for autoencoder but segmentation weighted only on the class type
+        criterion = UnweightedLoss(1, 1.5)  # take only the first channel of the mask and weight with class
     # torch.autograd.set_detect_anomaly(True)
 
     if args.vae:
@@ -154,7 +173,7 @@ if __name__ == "__main__":
                         help='what kind of loss among weighted, unweightedAE')
     parser.add_argument('--patience', nargs="?", type=int, default=10, help='patience for early stopping')
     parser.add_argument('--patience_lr', nargs="?", type=int, default=3, help='patience for learning rate')
-    parser.add_argument('--lr', nargs="?", type=float, default= 0.0001, help='learning rate value')
+    parser.add_argument('--lr', nargs="?", type=float, default= 0.001, help='learning rate value')
     parser.add_argument('--epochs', nargs="?", type=int, default=200, help='number of epochs')
     parser.add_argument('--bs', nargs="?", type=int, default=8, help='batch size')
     parser.add_argument('--dataset', nargs="?", default='green', help='dataset flavour')
@@ -163,12 +182,20 @@ if __name__ == "__main__":
                         help='include or not c0 lauyer')
     parser.add_argument('--ae', action='store_true',
                         help='autoencoder train of resunet')
+    parser.add_argument('--ae_bin', action='store_true',
+                        help='autoencoder train of resunet')
     parser.add_argument('--ae_no_c0', action='store_true',
                         help='autoencoder without c0')
     parser.add_argument('--few_shot', action='store_true',
                         help='use a small dataset to train the model')
+    parser.add_argument('--few_shot_random_seed', default=10,
+                        help='random seed associated with few shot data generation')
     parser.add_argument('--few_shot_samples', type=int, default=100,
                         help='how many images')
+    parser.add_argument('--massive', action='store_true',
+                        help='how many images')
+    parser.add_argument('--weakly_supervised', action='store_true',
+                        help='use a small dataset to train the model')
     parser.add_argument('--resume', action='store_true',
                         help='resume training of the model specified with the model name')
     parser.add_argument('--resume_path', default=model_results_supervised_yellow,
@@ -195,6 +222,7 @@ if __name__ == "__main__":
     train(args=args)
 
 #next to do:
+#--few_shot --fine_tuning --lr 0.0001 --model_name c-resunet_y_11 --unfreezed_layers 5 --new_model_name c-resunet_y_11_dec_bottl_fs_200  --few_shot_samples 200 --few_shot_random_seed 123
 #--few_shot --fine_tuning --model_name c-resunet_y_11 --unfreezed_layers 5 --new_model_name c-resunet_y_11_dec_bottl_fs_40  --few_shot_samples 40 (new training modalities)
 #--few_shot --fine_tuning --model_name c-resunet_y_11 --unfreezed_layers 1 --new_model_name c-resunet_y_11_last_fs_40  --few_shot_samples 40
 

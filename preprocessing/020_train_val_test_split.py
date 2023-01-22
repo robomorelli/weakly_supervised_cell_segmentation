@@ -57,7 +57,10 @@ def main(train_val_split):
             os.makedirs(str(path).replace('preprocessing/', ''))
 
     for ix, name in tqdm(enumerate(images_name), total=len(images_name)):
+        if 'RT' in name:
+            continue
         if name in train_val_names:
+            print('savin in train_val')
             shutil.copy(os.path.join(LoadImagesForSplit,name), os.path.join(SaveTrainValImages,name))
             shutil.copy(os.path.join(LoadMasksForSplit,name), os.path.join(SaveTrainValMasks,name))
         else:

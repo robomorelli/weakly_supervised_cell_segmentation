@@ -300,19 +300,25 @@ def make_data_augmentation(split_num, images_path, masks_path,
         ext = name_ext.split('.')[1]
 
         image, mask = read_image_masks(name_ext, Images, Masks)
+        aug_img_dir = SaveAugImages + '{}_0.{}'.format(name, ext)
+        aug_mask_dir = SaveAugMasks + '{}_0.{}'.format(name, ext)
+        plt.imsave(fname=aug_img_dir, arr=image)
+        plt.imsave(fname=aug_mask_dir, arr=mask)
+
         img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         hist = cv2.calcHist([img_gray],[0],None,[256],[0,256])
         mask_to_count = np.squeeze(mask[:,:,0:1])
         mask_image, n_objs_mask = ndimage.label(mask_to_count, np.ones((3,3)))
 
         if (n_objs_mask == 0) & (hist[0] < 3000):
-            split_num = 1
-        elif (0 < n_objs_mask <= 10):
-            split_num = max(split_num-2, 2)
+            split_num_aug = 1
+        elif (0 < n_objs_mask <= 5):
+            split_num_aug = max(split_num-1, 2)
         else:
-            split_num = split_num
+            split_num_aug = split_num + 1
 
-        for i in range(split_num):
+        for i in range(split_num_aug):
+            print(split_num_aug)
 
             if (OnCropped == True) & (Elastic == True):
                 new_image, new_mask = elastic_aug(image,mask,name)
@@ -326,8 +332,8 @@ def make_data_augmentation(split_num, images_path, masks_path,
             new_image.astype(float)
             new_mask.astype(float)
 
-            aug_img_dir = SaveAugImages + '{}_{}.{}'.format(name, i, ext)
-            aug_mask_dir = SaveAugMasks + '{}_{}.{}'.format(name, i, ext)
+            aug_img_dir = SaveAugImages + '{}_{}.{}'.format(name, i+1, ext)
+            aug_mask_dir = SaveAugMasks + '{}_{}.{}'.format(name, i+1, ext)
             plt.imsave(fname=aug_img_dir, arr = new_image)
             plt.imsave(fname=aug_mask_dir,arr = new_mask)
 ######################################################################################

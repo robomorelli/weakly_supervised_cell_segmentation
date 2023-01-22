@@ -11,7 +11,7 @@
 #  #See the License for the specific language governing permissions and
 #  #limitations under the License.
 __all__ = ['_get_ltype', 'Add', 'Concatenate', 'ConvBlock', 'ResidualBlock', 'UpResidualBlock', 'Bottleneck',
-           'Heatmap', 'Heatmap2d', 'HeatmapAE', 'Embedding', 'HeatmapVAE', 'BottleneckVAE', 'HeatmapVAERecon',
+           'Heatmap', 'Heatmap2d', 'HeatmapAE_bin', 'Embedding', 'HeatmapVAE', 'BottleneckVAE', 'HeatmapVAERecon',
            'UpResidualBlockNoConv', 'UpResidualBlockNoConcat']
 
 from fastai.vision.all import *
@@ -150,9 +150,10 @@ class Heatmap(nn.Module):
     def forward(self, x):
         return self.act(self.conv2d(x))
 
-class HeatmapAE(nn.Module):
+class HeatmapAE_bin(nn.Module):
     def __init__(self, n_in, n_out=1, kernel_size=1, stride=1, padding=0):
-        super(HeatmapAE, self).__init__()
+        super(HeatmapAE_bin, self).__init__()
+        self.conv2d_binary = nn.Conv2d(n_in, 1, kernel_size, stride, padding)
         self.conv2d = nn.Conv2d(1, n_out, kernel_size, stride, padding)
         self.act = nn.Sigmoid()
 
